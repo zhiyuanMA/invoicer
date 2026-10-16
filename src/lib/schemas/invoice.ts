@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { DEFAULT_GST_RATE_BPS } from "@/lib/money";
+import { DEFAULT_GST_RATE_BPS, MAX_QUANTITY, MAX_UNIT_PRICE_CENTS } from "@/lib/money";
 
 /** Form inputs send "" for empty fields; treat those as not provided. */
 const emptyToUndefined = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? undefined : value;
 
-const optionalText = z.preprocess(emptyToUndefined, z.string().trim().max(2000).optional());
+export const optionalText = z.preprocess(emptyToUndefined, z.string().trim().max(2000).optional());
 
 const optionalNumber = (schema: z.ZodNumber) =>
   z.preprocess((v) => (v === null ? undefined : emptyToUndefined(v)), schema.optional());
@@ -34,8 +34,10 @@ export const sellerSchema = partySchema.extend({
 
 export const lineItemSchema = z.object({
   description: optionalText,
-  quantity: optionalNumber(z.number().finite().multipleOf(0.001)),
-  unitPriceCents: optionalNumber(z.number().int()),
+  quantity: optionalNumber(z.number().min(-MAX_QUANTITY).max(MAX_QUANTITY).multipleOf(0.001)),
+  unitPriceCents: optionalNumber(
+    z.number().int().min(-MAX_UNIT_PRICE_CENTS).max(MAX_UNIT_PRICE_CENTS),
+  ),
   discountPercent: optionalNumber(z.number().min(0).max(100).multipleOf(0.01)),
   gstApplicable: z.boolean().default(true),
 });

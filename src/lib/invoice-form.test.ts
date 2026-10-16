@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { invoiceSchema } from "./schemas/invoice";
 import {
+  centsToDollars,
   defaultFormValues,
+  invoiceToFormValues,
+  newInvoiceFormValues,
   dollarsToCents,
   parseNumber,
   toInvoiceInput,
@@ -104,5 +107,73 @@ describe("toPreviewInput", () => {
       expect(parsed.data.currency).toBe("NZD");
       expect(parsed.data.lines[0].unitPriceCents).toBeUndefined();
     }
+  });
+});
+
+describe("centsToDollars", () => {
+  it("formats integer cents as dollars with two decimals", () => {
+    expect(centsToDollars(1250)).toBe("12.50");
+    expect(centsToDollars(100)).toBe("1.00");
+    expect(centsToDollars(7)).toBe("0.07");
+    expect(centsToDollars(0)).toBe("0.00");
+    expect(centsToDollars(-500)).toBe("-5.00");
+    expect(centsToDollars(-5)).toBe("-0.05");
+  });
+
+  it("is the inverse of dollarsToCents", () => {
+    for (const cents of [0, 1, 99, 100, 1234, -1234, 100_000_000]) {
+      expect(dollarsToCents(centsToDollars(cents))).toBe(cents);
+    }
+  });
+});
+
+describe("invoiceToFormValues", () => {
+  it("round-trips a fully filled invoice", () => {
+    const invoice = invoiceSchema.parse({
+      title: "Tax Invoice",
+      number: "INV-1",
+      issueDate: "2026-10-01",
+      dueDate: "2026-10-20",
+      currency: "AUD",
+      pricesIncludeGst: true,
+      seller: {
+        name: "Acme",
+        address: "1 St",
+        email: "a@b.co",
+        phone: "1",
+        nzbn: "9",
+        gstNumber: "8",
+      },
+      buyer: { name: "Jane", address: "2 St", email: "j@b.co", nzbn: "7" },
+      paymentDetails: "Bank",
+      notes: "Hi",
+      lines: [
+        {
+          description: "Work",
+          quantity: 2.5,
+          unitPriceCents: 1999,
+          discountPercent: 12.5,
+          gstApplicable: false,
+        },
+        { description: "Partial", quantity: 1 },
+        {},
+      ],
+    });
+    expect(invoiceSchema.parse(toInvoiceInput(invoiceToFormValues(invoice)))).toEqual(invoice);
+  });
+
+  it("round-trips a minimal invoice", () => {
+    const invoice = invoiceSchema.parse({ seller: { name: "A" }, buyer: { name: "B" } });
+    expect(invoiceSchema.parse(toInvoiceInput(invoiceToFormValues(invoice)))).toEqual(invoice);
+  });
+});
+
+describe("newInvoiceFormValues", () => {
+  it("prefills the seller and payment details, and leaves the rest empty", () => {
+    const values = newInvoiceFormValues({ name: "Acme", gstNumber: "123", paymentDetails: "Bank" });
+    expect(values.seller).toMatchObject({ name: "Acme", gstNumber: "123", address: "" });
+    expect(values.paymentDetails).toBe("Bank");
+    expect(values.buyer.name).toBe("");
+    expect(values.lines).toHaveLength(1);
   });
 });

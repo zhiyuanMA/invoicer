@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: invoicer
+      POSTGRES_PASSWORD: invoicer
+      POSTGRES_DB: invoicer
+    ports:
+      # Host port 5433 avoids clashing with a Postgres already running on 5432.
+      # Bound to localhost only: this database has no real credentials.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs once, on first start with an empty volume.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoicer -d invoicer"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

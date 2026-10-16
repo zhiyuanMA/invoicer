@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// A saved invoice. `content` is a full snapshot of the validated invoice (seller, buyer, lines,
+/// tax settings), so later changes to seller settings or customers never alter it.
+model Invoice {
+  id         String   @id @default(uuid()) @db.Uuid
+  templateId String   @default("classic")
+  /// Denormalised from `content` for the list page.
+  number     String?
+  buyerName  String
+  /// ISO date (YYYY-MM-DD), kept as text to avoid time zone conversions.
+  issueDate  String?
+  currency   String
+  /// Null when no line counts towards the totals.
+  totalCents BigInt?
+  content    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("invoices")
+}
+
+/// A buyer saved for reuse.
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  address   String?
+  email     String?
+  nzbn      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customers")
+}
+
+/// A seller (the business issuing invoices), saved for reuse. At most one is the default, which
+/// prefills new invoices. Invoices keep their own snapshot, so editing or deleting a seller never
+/// changes them.
+model Seller {
+  id             String   @id @default(uuid()) @db.Uuid
+  /// What the seller is called in lists and pickers, for example "Acme - Consulting".
+  label          String
+  name           String
+  address        String?
+  email          String?
+  phone          String?
+  nzbn           String?
+  gstNumber      String?
+  paymentDetails String?
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("sellers")
+}

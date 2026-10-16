@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { computeTotals, lineAmountCents, roundDiv } from "./money";
+import {
+  MAX_QUANTITY,
+  MAX_UNIT_PRICE_CENTS,
+  computeTotals,
+  lineAmountCents,
+  mulDiv,
+  roundDiv,
+} from "./money";
 
 describe("roundDiv", () => {
   it("rounds half away from zero", () => {
@@ -131,5 +138,29 @@ describe("computeTotals", () => {
       { quantity: 1, unitPriceCents: 20 },
     ]);
     expect(t.subtotalCents).toBe(30);
+  });
+});
+
+describe("large amounts", () => {
+  it("mulDiv does not lose precision where plain multiplication would", () => {
+    // 3e9 * 3e9 = 9e18 exceeds Number.MAX_SAFE_INTEGER
+    expect(mulDiv(3_000_000_000, 3_000_000_000, 1_000_000_000)).toBe(9_000_000_000);
+    expect(mulDiv(-3_000_000_000, 3_000_000_000, 1_000_000_000)).toBe(-9_000_000_000);
+  });
+
+  it("stays exact at the largest accepted line", () => {
+    const line = { quantity: MAX_QUANTITY, unitPriceCents: MAX_UNIT_PRICE_CENTS };
+    expect(lineAmountCents(line)).toBe(10_000_000_000_000); // 1e13 cents
+  });
+
+  it("totals 200 maximum lines inside the safe integer range", () => {
+    const lines = Array.from({ length: 200 }, () => ({
+      quantity: MAX_QUANTITY,
+      unitPriceCents: MAX_UNIT_PRICE_CENTS,
+    }));
+    const totals = computeTotals(lines);
+    expect(totals.subtotalCents).toBe(2_000_000_000_000_000);
+    expect(totals.gstCents).toBe(300_000_000_000_000);
+    expect(Number.isSafeInteger(totals.totalCents)).toBe(true);
   });
 });

@@ -30,3 +30,12 @@ export function formatQuantity(quantity: number): string {
 export function formatPercentFromBps(bps: number): string {
   return String(bps / 100);
 }
+
+/** 16/10/2026, 1:30 pm in Auckland time. */
+export function formatDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}

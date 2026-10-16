@@ -3,6 +3,8 @@
  * values into the shape the invoice schema validates.
  */
 
+import type { Invoice } from "@/lib/schemas/invoice";
+
 export type LineFormValues = {
   description: string;
   quantity: string;
@@ -52,6 +54,72 @@ export function defaultFormValues(): InvoiceFormValues {
     notes: "",
     lines: [emptyLine()],
   };
+}
+
+/** 1250 -> "12.50"; -500 -> "-5.00" */
+export function centsToDollars(cents: number): string {
+  const abs = Math.abs(cents);
+  const text = `${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
+  return cents < 0 ? `-${text}` : text;
+}
+
+/** Form values for editing a saved invoice (the inverse of `toInvoiceInput`). */
+export function invoiceToFormValues(invoice: Invoice): InvoiceFormValues {
+  const { seller, buyer } = invoice;
+  return {
+    title: invoice.title ?? "",
+    number: invoice.number ?? "",
+    issueDate: invoice.issueDate ?? "",
+    dueDate: invoice.dueDate ?? "",
+    currency: invoice.currency,
+    pricesIncludeGst: invoice.pricesIncludeGst,
+    seller: {
+      name: seller.name,
+      address: seller.address ?? "",
+      email: seller.email ?? "",
+      phone: seller.phone ?? "",
+      nzbn: seller.nzbn ?? "",
+      gstNumber: seller.gstNumber ?? "",
+    },
+    buyer: {
+      name: buyer.name,
+      address: buyer.address ?? "",
+      email: buyer.email ?? "",
+      nzbn: buyer.nzbn ?? "",
+    },
+    paymentDetails: invoice.paymentDetails ?? "",
+    notes: invoice.notes ?? "",
+    lines: invoice.lines.map((line) => ({
+      description: line.description ?? "",
+      quantity: line.quantity === undefined ? "" : String(line.quantity),
+      unitPrice: line.unitPriceCents === undefined ? "" : centsToDollars(line.unitPriceCents),
+      discountPercent: line.discountPercent === undefined ? "" : String(line.discountPercent),
+      gstApplicable: line.gstApplicable,
+    })),
+  };
+}
+
+/** Form values for a new invoice, with the seller details and payment details prefilled. */
+export function newInvoiceFormValues(seller: {
+  name?: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  nzbn?: string;
+  gstNumber?: string;
+  paymentDetails?: string;
+}): InvoiceFormValues {
+  const values = defaultFormValues();
+  values.seller = {
+    name: seller.name ?? "",
+    address: seller.address ?? "",
+    email: seller.email ?? "",
+    phone: seller.phone ?? "",
+    nzbn: seller.nzbn ?? "",
+    gstNumber: seller.gstNumber ?? "",
+  };
+  values.paymentDetails = seller.paymentDetails ?? "";
+  return values;
 }
 
 /** "" -> undefined; "2.5" -> 2.5; "abc" -> NaN (so the schema reports it). */

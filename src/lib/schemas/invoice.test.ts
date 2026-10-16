@@ -89,4 +89,19 @@ describe("invoiceSchema", () => {
     ];
     expect(invoiceSchema.safeParse({ ...minimal, lines }).success).toBe(true);
   });
+
+  it("limits quantity and unit price so calculations stay exact", () => {
+    expect(invoiceSchema.safeParse({ ...minimal, lines: [{ quantity: 100001 }] }).success).toBe(
+      false,
+    );
+    expect(
+      invoiceSchema.safeParse({ ...minimal, lines: [{ unitPriceCents: 100_000_001 }] }).success,
+    ).toBe(false);
+    expect(
+      invoiceSchema.safeParse({
+        ...minimal,
+        lines: [{ quantity: 100000, unitPriceCents: 100_000_000 }],
+      }).success,
+    ).toBe(true);
+  });
 });
