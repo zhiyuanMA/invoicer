@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_TEMPLATE, FONT_IDS, HEX_COLOR, TEMPLATE_IDS } from "@/lib/design";
 import { DEFAULT_GST_RATE_BPS, MAX_QUANTITY, MAX_UNIT_PRICE_CENTS } from "@/lib/money";
 
 /** Form inputs send "" for empty fields; treat those as not provided. */
@@ -44,6 +45,18 @@ export const lineItemSchema = z.object({
 
 /** Only the seller and buyer names are required; everything else is optional. */
 export const invoiceSchema = z.object({
+  template: z.preprocess(emptyToUndefined, z.enum(TEMPLATE_IDS).default(DEFAULT_TEMPLATE)),
+  /** Hex colour such as #2563eb; when absent the template's own accent is used. */
+  accentColor: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .regex(HEX_COLOR, "Must be a hex colour such as #2563eb")
+      .transform((value) => value.toLowerCase())
+      .optional(),
+  ),
+  /** When absent the template's own font is used. */
+  font: z.preprocess(emptyToUndefined, z.enum(FONT_IDS).optional()),
   title: optionalText,
   number: optionalText,
   issueDate: optionalDate,

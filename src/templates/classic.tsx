@@ -1,37 +1,39 @@
-import { formatDate, formatMoney, formatPercentFromBps, formatQuantity } from "@/lib/format";
-import { computeTotals } from "@/lib/money";
+import { formatDate } from "@/lib/format";
 import type { Invoice } from "@/lib/schemas/invoice";
+import { buildView, themeStyle } from "./view";
+
+export const CLASSIC_DEFAULTS = { accent: "#1f2937", font: "sans" } as const;
 
 /**
  * Plain CSS shipped with the template, so the same markup renders identically in the on-screen
- * preview and in the PDF (Chromium). Everything is scoped under `.inv`.
+ * preview and in the PDF (Chromium). Everything is scoped under `.inv-classic`.
  */
 export const classicCss = `
 @page { size: A4; margin: 0; }
-.inv { box-sizing: border-box; width: 210mm; min-height: 297mm; padding: 16mm; background: #fff;
-  color: #1f2937; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.45; }
-.inv *, .inv *::before, .inv *::after { box-sizing: border-box; }
-.inv h1 { margin: 0; font-size: 26pt; font-weight: 700; letter-spacing: 0.02em; color: #111827; }
-.inv .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12mm; }
-.inv .meta { text-align: right; }
-.inv .meta div + div { margin-top: 1mm; }
-.inv .label { color: #6b7280; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; }
-.inv .parties { display: flex; gap: 12mm; margin-top: 12mm; }
-.inv .party { flex: 1; }
-.inv .party .name { font-weight: 700; font-size: 11pt; }
-.inv .pre { white-space: pre-line; }
-.inv table { width: 100%; border-collapse: collapse; margin-top: 12mm; }
-.inv th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em;
-  color: #6b7280; border-bottom: 1.5px solid #111827; padding: 2mm 2mm 2mm 0; }
-.inv td { padding: 2.5mm 2mm 2.5mm 0; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-.inv .num { text-align: right; white-space: nowrap; padding-right: 0; }
-.inv th.num { padding-right: 0; }
-.inv tr { break-inside: avoid; }
-.inv .totals { margin-top: 6mm; margin-left: auto; width: 75mm; }
-.inv .totals div { display: flex; justify-content: space-between; padding: 1.2mm 0; }
-.inv .totals .grand { border-top: 1.5px solid #111827; margin-top: 1mm; padding-top: 2.5mm;
+.inv-classic { box-sizing: border-box; width: 210mm; min-height: 297mm; padding: 16mm; background: #fff;
+  color: #1f2937; font-size: 10pt; line-height: 1.45; }
+.inv-classic *, .inv-classic *::before, .inv-classic *::after { box-sizing: border-box; }
+.inv-classic h1 { margin: 0; font-size: 26pt; font-weight: 700; letter-spacing: 0.02em; color: var(--accent); }
+.inv-classic .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12mm; }
+.inv-classic .meta { text-align: right; }
+.inv-classic .meta div + div { margin-top: 1mm; }
+.inv-classic .label { color: #6b7280; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; }
+.inv-classic .parties { display: flex; gap: 12mm; margin-top: 12mm; }
+.inv-classic .party { flex: 1; }
+.inv-classic .party .name { font-weight: 700; font-size: 11pt; }
+.inv-classic .pre { white-space: pre-line; }
+.inv-classic table { width: 100%; border-collapse: collapse; margin-top: 12mm; }
+.inv-classic th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em;
+  color: #6b7280; border-bottom: 1.5px solid var(--accent); padding: 2mm 2mm 2mm 0; }
+.inv-classic td { padding: 2.5mm 2mm 2.5mm 0; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+.inv-classic .num { text-align: right; white-space: nowrap; padding-right: 0; }
+.inv-classic th.num { padding-right: 0; }
+.inv-classic tr { break-inside: avoid; }
+.inv-classic .totals { margin-top: 6mm; margin-left: auto; width: 75mm; }
+.inv-classic .totals div { display: flex; justify-content: space-between; padding: 1.2mm 0; }
+.inv-classic .totals .grand { border-top: 1.5px solid var(--accent); margin-top: 1mm; padding-top: 2.5mm;
   font-weight: 700; font-size: 12pt; }
-.inv .section { margin-top: 10mm; break-inside: avoid; }
+.inv-classic .section { margin-top: 10mm; break-inside: avoid; }
 `;
 
 function Block({ label, children }: { label: string; children: React.ReactNode }) {
@@ -44,27 +46,16 @@ function Block({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function ClassicTemplate({ invoice }: { invoice: Invoice }) {
-  const { seller, buyer, currency } = invoice;
-  const totals = computeTotals(invoice.lines, {
-    gstRateBps: invoice.gstRateBps,
-    pricesIncludeGst: invoice.pricesIncludeGst,
-  });
-  const money = (cents: number) => formatMoney(cents, currency);
-  const visibleLines = invoice.lines.filter(
-    (line) =>
-      line.description !== undefined ||
-      line.quantity !== undefined ||
-      line.unitPriceCents !== undefined,
-  );
-  const hasDiscount = visibleLines.some((line) => line.discountPercent);
+  const { seller, buyer } = invoice;
+  const view = buildView(invoice);
 
   return (
-    <div className="inv">
+    <div className="inv-classic" style={themeStyle(invoice, CLASSIC_DEFAULTS)}>
       <style dangerouslySetInnerHTML={{ __html: classicCss }} />
 
       <div className="head">
         <div>
-          <h1>{invoice.title ?? "Invoice"}</h1>
+          <h1>{view.title}</h1>
         </div>
         <div className="meta">
           {invoice.number && (
@@ -104,56 +95,44 @@ export function ClassicTemplate({ invoice }: { invoice: Invoice }) {
         </div>
       </div>
 
-      {visibleLines.length > 0 && (
+      {view.lines.length > 0 && (
         <table>
           <thead>
             <tr>
               <th>Description</th>
               <th className="num">Qty</th>
               <th className="num">Unit price</th>
-              {hasDiscount && <th className="num">Discount</th>}
+              {view.hasDiscount && <th className="num">Discount</th>}
               <th className="num">Amount</th>
             </tr>
           </thead>
           <tbody>
-            {visibleLines.map((line, index) => {
-              // `totals.lines` follows `invoice.lines`, so find this line's result by identity.
-              const amount = totals.lines[invoice.lines.indexOf(line)]?.amountCents ?? null;
-              return (
-                <tr key={index}>
-                  <td className="pre">{line.description}</td>
-                  <td className="num">
-                    {line.quantity !== undefined ? formatQuantity(line.quantity) : ""}
-                  </td>
-                  <td className="num">
-                    {line.unitPriceCents !== undefined ? money(line.unitPriceCents) : ""}
-                  </td>
-                  {hasDiscount && (
-                    <td className="num">
-                      {line.discountPercent ? `${line.discountPercent}%` : ""}
-                    </td>
-                  )}
-                  <td className="num">{amount !== null ? money(amount) : ""}</td>
-                </tr>
-              );
-            })}
+            {view.lines.map((line, index) => (
+              <tr key={index}>
+                <td className="pre">{line.description}</td>
+                <td className="num">{line.quantity}</td>
+                <td className="num">{line.unitPrice}</td>
+                {view.hasDiscount && <td className="num">{line.discount}</td>}
+                <td className="num">{line.amount}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       )}
 
-      {totals.hasTotals && (
+      {view.totals && (
         <div className="totals">
           <div>
             <span>Subtotal</span>
-            <span>{money(totals.subtotalCents)}</span>
+            <span>{view.totals.subtotal}</span>
           </div>
           <div>
-            <span>GST ({formatPercentFromBps(invoice.gstRateBps)}%)</span>
-            <span>{money(totals.gstCents)}</span>
+            <span>{view.totals.gstLabel}</span>
+            <span>{view.totals.gst}</span>
           </div>
           <div className="grand">
             <span>Total</span>
-            <span>{money(totals.totalCents)}</span>
+            <span>{view.totals.total}</span>
           </div>
         </div>
       )}

@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "playwright";
 import type { Invoice } from "@/lib/schemas/invoice";
-import { DEFAULT_TEMPLATE, templates, type TemplateId } from "@/templates";
+import { templates } from "@/templates";
 
 /** Server-side only: renders a template to a complete HTML document. User text is escaped by React. */
-export function renderInvoiceHtml(invoice: Invoice, templateId: TemplateId = DEFAULT_TEMPLATE) {
-  const Template = templates[templateId];
+export function renderInvoiceHtml(invoice: Invoice) {
+  const { Component: Template } = templates[invoice.template];
   const body = renderToStaticMarkup(<Template invoice={invoice} />);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${
     // The title never contains user input.

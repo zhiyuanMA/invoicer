@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { htmlToPdf, pdfFileName, renderInvoiceHtml } from "@/lib/pdf";
 import { getInvoice } from "@/server/invoice-store";
-import { resolveTemplateId } from "@/templates";
 
 /** PDF of a saved invoice, rendered from its stored snapshot. See pdf.ts for why this is a Pages route. */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -14,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const saved = await getInvoice(id);
   if (!saved) return res.status(404).json({ error: "Invoice not found" });
 
-  const html = renderInvoiceHtml(saved.invoice, resolveTemplateId(saved.templateId));
+  const html = renderInvoiceHtml(saved.invoice);
   const pdf = await htmlToPdf(html);
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${pdfFileName(saved.invoice)}"`);

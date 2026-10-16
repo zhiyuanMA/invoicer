@@ -105,3 +105,53 @@ describe("invoiceSchema", () => {
     ).toBe(true);
   });
 });
+
+describe("invoice design fields", () => {
+  const base = { seller: { name: "A" }, buyer: { name: "B" } };
+
+  it("defaults to the classic template, with no accent colour or font chosen", () => {
+    const parsed = invoiceSchema.parse(base);
+    expect(parsed.template).toBe("classic");
+    expect(parsed.font).toBeUndefined();
+    expect(parsed.accentColor).toBeUndefined();
+  });
+
+  it("accepts known templates and fonts, and lower-cases the colour", () => {
+    const parsed = invoiceSchema.parse({
+      ...base,
+      template: "modern",
+      font: "serif",
+      accentColor: "#2563EB",
+    });
+    expect(parsed).toMatchObject({ template: "modern", font: "serif", accentColor: "#2563eb" });
+  });
+
+  it("treats empty design fields as not provided", () => {
+    const parsed = invoiceSchema.parse({ ...base, template: "", font: "", accentColor: "" });
+    expect(parsed.template).toBe("classic");
+    expect(parsed.font).toBeUndefined();
+    expect(parsed.accentColor).toBeUndefined();
+  });
+
+  it("rejects unknown templates and fonts", () => {
+    expect(invoiceSchema.safeParse({ ...base, template: "fancy" }).success).toBe(false);
+    expect(invoiceSchema.safeParse({ ...base, font: "comic" }).success).toBe(false);
+  });
+
+  it("rejects anything but a plain hex colour, so nothing can be injected into CSS", () => {
+    for (const bad of [
+      "red",
+      "#fff",
+      "#12345",
+      "#1234567",
+      "2563eb",
+      "#gggggg",
+      "#2563eb;background:url(https://evil.example)",
+      "#2563eb}</style><script>alert(1)</script>",
+      "url(x)",
+      "rgb(0,0,0)",
+    ]) {
+      expect(invoiceSchema.safeParse({ ...base, accentColor: bad }).success, bad).toBe(false);
+    }
+  });
+});

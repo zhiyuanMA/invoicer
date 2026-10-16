@@ -81,3 +81,11 @@ describe("pdfFileName", () => {
     expect(pdfFileName(parse(base))).toBe("invoice.pdf");
   });
 });
+
+describe("renderInvoiceHtml with templates", () => {
+  it("renders the template chosen in the invoice", () => {
+    expect(renderInvoiceHtml(parse({ ...base, template: "modern" }))).toContain("inv-modern");
+    expect(renderInvoiceHtml(parse({ ...base, template: "minimal" }))).toContain("inv-minimal");
+    expect(renderInvoiceHtml(parse(base))).toContain("inv-classic");
+  });
+});

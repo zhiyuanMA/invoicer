@@ -3,6 +3,7 @@
  * values into the shape the invoice schema validates.
  */
 
+import { DEFAULT_TEMPLATE, HEX_COLOR, type FontId, type TemplateId } from "@/lib/design";
 import type { Invoice } from "@/lib/schemas/invoice";
 
 export type LineFormValues = {
@@ -16,6 +17,11 @@ export type LineFormValues = {
 };
 
 export type InvoiceFormValues = {
+  template: TemplateId;
+  /** "" means the template's own accent colour. */
+  accentColor: string;
+  /** "" means the template's own font. */
+  font: FontId | "";
   title: string;
   number: string;
   issueDate: string;
@@ -42,6 +48,9 @@ export function emptyLine(): LineFormValues {
 
 export function defaultFormValues(): InvoiceFormValues {
   return {
+    template: DEFAULT_TEMPLATE,
+    accentColor: "",
+    font: "",
     title: "",
     number: "",
     issueDate: "",
@@ -67,6 +76,9 @@ export function centsToDollars(cents: number): string {
 export function invoiceToFormValues(invoice: Invoice): InvoiceFormValues {
   const { seller, buyer } = invoice;
   return {
+    template: invoice.template,
+    accentColor: invoice.accentColor ?? "",
+    font: invoice.font ?? "",
     title: invoice.title ?? "",
     number: invoice.number ?? "",
     issueDate: invoice.issueDate ?? "",
@@ -172,6 +184,7 @@ export function toPreviewInput(values: InvoiceFormValues): unknown {
   return {
     ...input,
     currency: /^[A-Za-z]{3}$/.test(input.currency.trim()) ? input.currency : "",
+    accentColor: HEX_COLOR.test(input.accentColor) ? input.accentColor : "",
     seller: { ...input.seller, name: input.seller.name.trim() || "Your company" },
     buyer: { ...input.buyer, name: input.buyer.name.trim() || "Client name" },
     lines: input.lines.map((line) => ({

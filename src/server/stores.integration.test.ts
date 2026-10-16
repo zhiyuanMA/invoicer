@@ -9,6 +9,7 @@ import {
   duplicateInvoice,
   getInvoice,
   listInvoices,
+  setInvoiceStatus,
   updateInvoice,
 } from "./invoice-store";
 import {
@@ -52,7 +53,8 @@ describe("invoice store", () => {
     const saved = await createInvoice(sample());
     const loaded = await getInvoice(saved.id);
     expect(loaded?.invoice).toEqual(sample());
-    expect(loaded?.templateId).toBe("classic");
+    expect(loaded?.status).toBe("draft");
+    expect(loaded?.invoice.template).toBe("classic");
   });
 
   it("keeps list columns in sync with the snapshot", async () => {
@@ -136,6 +138,137 @@ describe("invoice store", () => {
     await createInvoice(big);
     const [item] = await listInvoices();
     expect(item.totalCents).toBe(11_500_000_000_000); // 1e13 + 15% GST
+  });
+});
+
+describe("invoice design", () => {
+  it("stores the template, accent colour and font in the snapshot", async () => {
+    const saved = await createInvoice(
+      parse({ ...sample(), template: "minimal", accentColor: "#059669", font: "serif" }),
+    );
+    const loaded = await getInvoice(saved.id);
+    expect(loaded?.invoice).toMatchObject({
+      template: "minimal",
+      accentColor: "#059669",
+      font: "serif",
+    });
+  });
+
+  it("applies the design defaults to a snapshot saved without one", async () => {
+    // Invoices saved before the design fields existed have none of them in their content
+    const saved = await createInvoice(sample());
+    await getPrisma()
+      .$executeRaw`UPDATE invoices SET content = content - 'template' - 'font' WHERE id = ${saved.id}::uuid`;
+    const loaded = await getInvoice(saved.id);
+    expect(loaded?.invoice.template).toBe("classic");
+    expect(loaded?.invoice.font).toBeUndefined();
+  });
+});
+
+describe("invoice status", () => {
+  it("starts as a draft and can be changed", async () => {
+    const saved = await createInvoice(sample());
+    expect(saved.status).toBe("draft");
+    expect(await setInvoiceStatus(saved.id, "sent")).toBe(true);
+    expect((await getInvoice(saved.id))?.status).toBe("sent");
+    expect((await listInvoices())[0].status).toBe("sent");
+    expect(await setInvoiceStatus(saved.id, "paid")).toBe(true);
+    expect((await getInvoice(saved.id))?.status).toBe("paid");
+  });
+
+  it("is not reset by editing the invoice", async () => {
+    const saved = await createInvoice(sample());
+    await setInvoiceStatus(saved.id, "sent");
+    const updated = await updateInvoice(saved.id, parse({ ...sample(), notes: "Changed" }));
+    expect(updated?.status).toBe("sent");
+    expect(updated?.invoice.notes).toBe("Changed");
+  });
+
+  it("gives a duplicate the draft status", async () => {
+    const saved = await createInvoice(sample());
+    await setInvoiceStatus(saved.id, "paid");
+    expect((await duplicateInvoice(saved.id))?.status).toBe("draft");
+  });
+
+  it("keeps the due date column in sync", async () => {
+    await createInvoice(sample());
+    expect((await listInvoices())[0].dueDate).toBe("2026-10-20");
+    await createInvoice(parse({ seller: { name: "A" }, buyer: { name: "B" } }));
+    expect((await listInvoices()).filter((i) => i.dueDate === null)).toHaveLength(1);
+  });
+
+  it("treats unknown and malformed ids as not found", async () => {
+    expect(await setInvoiceStatus("00000000-0000-4000-8000-000000000000", "paid")).toBe(false);
+    expect(await setInvoiceStatus("not-a-uuid", "paid")).toBe(false);
+  });
+});
+
+describe("filtering the invoice list", () => {
+  const TODAY = "2026-10-16";
+
+  /** Creates an invoice and returns its number, so tests can compare lists of numbers. */
+  async function add(
+    number: string,
+    buyer: string,
+    status: "draft" | "sent" | "paid",
+    dueDate?: string,
+  ) {
+    const saved = await createInvoice(
+      parse({ number, dueDate, seller: { name: "Acme" }, buyer: { name: buyer } }),
+    );
+    if (status !== "draft") await setInvoiceStatus(saved.id, status);
+  }
+
+  const numbers = async (filter: Parameters<typeof listInvoices>[0]) =>
+    (await listInvoices({ today: TODAY, ...filter })).map((i) => i.number).sort();
+
+  beforeEach(async () => {
+    await add("A", "Jane Smith", "draft", "2026-10-01"); // a draft is never overdue
+    await add("B", "Bob Brown", "sent", "2026-10-01"); // overdue
+    await add("C", "Cara Jones", "sent", "2026-10-20"); // sent, not yet due
+    await add("D", "Dan Lee", "sent"); // sent, no due date
+    await add("E", "Eve Moss", "paid", "2026-09-01"); // paid late is still paid
+    await add("F", "Fay Wong", "sent", TODAY); // due today is not overdue yet
+  });
+
+  it("returns everything without a filter", async () => {
+    expect(await numbers({})).toEqual(["A", "B", "C", "D", "E", "F"]);
+    expect(await numbers({ status: undefined, query: "" })).toEqual(["A", "B", "C", "D", "E", "F"]);
+  });
+
+  it("filters by status, and the tabs do not overlap", async () => {
+    expect(await numbers({ status: "draft" })).toEqual(["A"]);
+    expect(await numbers({ status: "paid" })).toEqual(["E"]);
+    expect(await numbers({ status: "overdue" })).toEqual(["B"]);
+    expect(await numbers({ status: "sent" })).toEqual(["C", "D", "F"]);
+  });
+
+  it("moves an invoice from sent to overdue when the date passes", async () => {
+    expect(await numbers({ status: "overdue", today: "2026-10-17" })).toEqual(["B", "F"]);
+    expect(await numbers({ status: "sent", today: "2026-10-17" })).toEqual(["C", "D"]);
+    expect(await numbers({ status: "overdue", today: "2026-10-21" })).toEqual(["B", "C", "F"]);
+  });
+
+  it("searches the buyer name and the number, ignoring case", async () => {
+    expect(await numbers({ query: "jane" })).toEqual(["A"]);
+    expect(await numbers({ query: "BROWN" })).toEqual(["B"]);
+    expect(await numbers({ query: "c" })).toEqual(["C"]); // Cara Jones, and number C
+    expect(await numbers({ query: "e" })).toEqual(["A", "C", "D", "E"]);
+    expect(await numbers({ query: "  dan  " })).toEqual(["D"]);
+    expect(await numbers({ query: "nobody" })).toEqual([]);
+  });
+
+  it("combines status and search", async () => {
+    expect(await numbers({ status: "sent", query: "o" })).toEqual(["C", "F"]); // Jones, Wong
+    expect(await numbers({ status: "paid", query: "jane" })).toEqual([]);
+  });
+
+  it("treats % and _ in the search as plain characters", async () => {
+    await add("G", "100% Organic", "draft");
+    await add("H", "abc", "draft");
+    expect(await numbers({ query: "100%" })).toEqual(["G"]);
+    expect(await numbers({ query: "a_c" })).toEqual([]);
+    expect(await numbers({ query: "%" })).toEqual(["G"]);
   });
 });
 

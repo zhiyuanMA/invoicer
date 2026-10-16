@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { STORED_STATUSES } from "@/lib/invoice-status";
 import { invoiceSchema, partySchema } from "@/lib/schemas/invoice";
 import { sellerProfileSchema } from "@/lib/schemas/seller";
 import { createCustomer, deleteCustomer } from "@/server/customer-store";
@@ -10,6 +11,7 @@ import {
   createInvoice,
   deleteInvoice,
   duplicateInvoice,
+  setInvoiceStatus,
   updateInvoice,
 } from "@/server/invoice-store";
 import { createSeller, deleteSeller, setDefaultSeller, updateSeller } from "@/server/seller-store";
@@ -43,6 +45,14 @@ export async function saveInvoiceAction(
   if (!updated) return { ok: false, error: "This invoice no longer exists" };
   refresh();
   return { ok: true, id: updated.id };
+}
+
+export async function setInvoiceStatusAction(id: string, status: unknown): Promise<ActionResult> {
+  const parsed = z.enum(STORED_STATUSES).safeParse(status);
+  if (!parsed.success) return { ok: false, error: "Unknown status" };
+  const done = await setInvoiceStatus(id, parsed.data);
+  refresh();
+  return done ? { ok: true } : { ok: false, error: "This invoice no longer exists" };
 }
 
 export async function deleteInvoiceAction(id: string): Promise<ActionResult> {

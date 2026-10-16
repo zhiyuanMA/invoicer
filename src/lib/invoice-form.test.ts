@@ -130,6 +130,9 @@ describe("centsToDollars", () => {
 describe("invoiceToFormValues", () => {
   it("round-trips a fully filled invoice", () => {
     const invoice = invoiceSchema.parse({
+      template: "modern",
+      accentColor: "#d97706",
+      font: "serif",
       title: "Tax Invoice",
       number: "INV-1",
       issueDate: "2026-10-01",
@@ -175,5 +178,27 @@ describe("newInvoiceFormValues", () => {
     expect(values.paymentDetails).toBe("Bank");
     expect(values.buyer.name).toBe("");
     expect(values.lines).toHaveLength(1);
+  });
+
+  it("keeps the design choices", () => {
+    const values = defaultFormValues();
+    values.seller.name = "A";
+    values.buyer.name = "B";
+    values.template = "minimal";
+    values.accentColor = "#2563EB";
+    values.font = "mono";
+    expect(invoiceSchema.parse(toInvoiceInput(values))).toMatchObject({
+      template: "minimal",
+      accentColor: "#2563eb",
+      font: "mono",
+    });
+  });
+
+  it("falls back to the default look for a half-typed accent colour in the preview", () => {
+    const values = defaultFormValues();
+    values.accentColor = "#25";
+    const parsed = invoiceSchema.safeParse(toPreviewInput(values));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.accentColor).toBeUndefined();
   });
 });

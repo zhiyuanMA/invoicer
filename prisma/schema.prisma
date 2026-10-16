@@ -7,24 +7,35 @@ datasource db {
   provider = "postgresql"
 }
 
+/// Overdue is not stored: it is worked out from SENT and the due date, so it can never go stale.
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+}
+
 /// A saved invoice. `content` is a full snapshot of the validated invoice (seller, buyer, lines,
-/// tax settings), so later changes to seller settings or customers never alter it.
+/// tax settings, template and theme), so later changes to seller settings or customers never alter it.
 model Invoice {
-  id         String   @id @default(uuid()) @db.Uuid
-  templateId String   @default("classic")
-  /// Denormalised from `content` for the list page.
+  id         String        @id @default(uuid()) @db.Uuid
+  status     InvoiceStatus @default(DRAFT)
+  /// Denormalised from `content` for the list page and its filters.
   number     String?
   buyerName  String
-  /// ISO date (YYYY-MM-DD), kept as text to avoid time zone conversions.
+  /// ISO dates (YYYY-MM-DD), kept as text to avoid time zone conversions. They compare correctly
+  /// as strings, which the overdue filter relies on.
   issueDate  String?
+  dueDate    String?
   currency   String
   /// Null when no line counts towards the totals.
   totalCents BigInt?
+  /// Includes the template, accent colour and font.
   content    Json
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
   @@index([createdAt])
+  @@index([status])
   @@map("invoices")
 }
 
