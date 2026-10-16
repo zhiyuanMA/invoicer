@@ -24,11 +24,11 @@ export const partySchema = z.object({
   name: requiredName,
   address: optionalText,
   email: optionalText,
+  nzbn: optionalText,
 });
 
 export const sellerSchema = partySchema.extend({
   phone: optionalText,
-  nzbn: optionalText,
   gstNumber: optionalText,
 });
 
@@ -61,7 +61,7 @@ export const invoiceSchema = z.object({
   notes: optionalText,
   pricesIncludeGst: z.boolean().default(false),
   gstRateBps: z.number().int().min(0).max(10000).default(DEFAULT_GST_RATE_BPS),
-  lines: z.array(lineItemSchema).default([]),
+  lines: z.array(lineItemSchema).max(200).default([]),
 });
 
 export type InvoiceInput = z.input<typeof invoiceSchema>;

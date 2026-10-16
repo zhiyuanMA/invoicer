@@ -75,4 +75,18 @@ describe("invoiceSchema", () => {
       false,
     );
   });
+
+  it("limits the number of line items", () => {
+    const lines = Array.from({ length: 201 }, () => ({}));
+    expect(invoiceSchema.safeParse({ ...minimal, lines }).success).toBe(false);
+  });
+
+  it("accepts decimal quantities and discounts despite floating point", () => {
+    const lines = [
+      { quantity: 1.1, discountPercent: 0.07 },
+      { quantity: 0.3, discountPercent: 12.5 },
+      { quantity: 2.675, discountPercent: 33.33 },
+    ];
+    expect(invoiceSchema.safeParse({ ...minimal, lines }).success).toBe(true);
+  });
 });
