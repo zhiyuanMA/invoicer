@@ -1,16 +1,19 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { saveCustomerAction, saveInvoiceAction } from "@/app/actions";
 import { todayInAuckland } from "@/lib/format";
 import {
-  defaultFormValues,
   emptyLine,
   toInvoiceInput,
   toPreviewInput,
   type InvoiceFormValues,
 } from "@/lib/invoice-form";
-import { invoiceSchema } from "@/lib/schemas/invoice";
+import { invoiceSchema, partySchema } from "@/lib/schemas/invoice";
+import type { Customer } from "@/server/customer-store";
+import type { Seller } from "@/server/seller-store";
 import { Field, Section, inputClass } from "./fields";
 import { InvoicePreview } from "./invoice-preview";
 
@@ -33,21 +36,37 @@ function touchedAt(touched: unknown, name: string): boolean {
   return node === true;
 }
 
-export function InvoiceEditor() {
+type Status = { kind: "ok" | "error"; text: string } | null;
+
+export function InvoiceEditor({
+  invoiceId,
+  initialValues,
+  customers,
+  sellers,
+}: {
+  /** Set when editing a saved invoice. */
+  invoiceId?: string;
+  initialValues: InvoiceFormValues;
+  customers: Customer[];
+  sellers: Seller[];
+}) {
+  const router = useRouter();
   const { register, control, setValue, formState } = useForm<InvoiceFormValues>({
-    defaultValues: defaultFormValues(),
+    defaultValues: initialValues,
   });
   const { fields, append, remove } = useFieldArray({ control, name: "lines" });
   const values = useWatch({ control }) as InvoiceFormValues;
 
   const [attempted, setAttempted] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<Status>(null);
 
-  // The issue date defaults to today in New Zealand. Done after mount to avoid a server/client mismatch.
+  // A new invoice's issue date defaults to today in New Zealand. Done after mount to avoid a
+  // server/client mismatch.
   useEffect(() => {
-    setValue("issueDate", todayInAuckland());
-  }, [setValue]);
+    if (!invoiceId) setValue("issueDate", todayInAuckland());
+  }, [invoiceId, setValue]);
 
   const strict = useMemo(() => invoiceSchema.safeParse(toInvoiceInput(values)), [values]);
   const preview = useMemo(() => invoiceSchema.safeParse(toPreviewInput(values)), [values]);
@@ -63,7 +82,7 @@ export function InvoiceEditor() {
     return map;
   }, [strict]);
 
-  /** Show an error once the user has left the field, or after a download attempt. */
+  /** Show an error once the user has left the field, or after a save or download attempt. */
   function errorFor(name: string): string | undefined {
     const message = errors.get(name);
     if (!message) return undefined;
@@ -72,8 +91,71 @@ export function InvoiceEditor() {
 
   const invalid = (name: string) => (errorFor(name) ? true : undefined);
 
+  async function save() {
+    setStatus(null);
+    if (!strict.success) {
+      setAttempted(true);
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await saveInvoiceAction(invoiceId ?? null, strict.data);
+      if (!result.ok) {
+        setStatus({ kind: "error", text: result.error });
+      } else if (!invoiceId) {
+        // The new invoice now exists; continue editing it at its own address.
+        router.replace(`/invoices/${result.id}`);
+      } else {
+        setStatus({ kind: "ok", text: "Saved" });
+      }
+    } catch {
+      setStatus({ kind: "error", text: "Could not save the invoice" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Applies a saved seller to the seller fields and the payment details. */
+  function applySeller(id: string) {
+    const seller = sellers.find((s) => s.id === id);
+    if (!seller) return;
+    const options = { shouldDirty: true, shouldTouch: true };
+    setValue("seller.name", seller.name, options);
+    setValue("seller.address", seller.address ?? "", options);
+    setValue("seller.email", seller.email ?? "", options);
+    setValue("seller.phone", seller.phone ?? "", options);
+    setValue("seller.nzbn", seller.nzbn ?? "", options);
+    setValue("seller.gstNumber", seller.gstNumber ?? "", options);
+    setValue("paymentDetails", seller.paymentDetails ?? "", options);
+  }
+
+  /** Applies a saved customer to the buyer fields. */
+  function applyCustomer(id: string) {
+    const customer = customers.find((c) => c.id === id);
+    if (!customer) return;
+    const options = { shouldDirty: true, shouldTouch: true };
+    setValue("buyer.name", customer.name, options);
+    setValue("buyer.address", customer.address ?? "", options);
+    setValue("buyer.email", customer.email ?? "", options);
+    setValue("buyer.nzbn", customer.nzbn ?? "", options);
+  }
+
+  async function saveBuyerAsCustomer() {
+    setStatus(null);
+    const parsed = partySchema.safeParse(values.buyer);
+    if (!parsed.success) {
+      setAttempted(true);
+      setStatus({ kind: "error", text: "Enter the buyer name first" });
+      return;
+    }
+    const result = await saveCustomerAction(parsed.data);
+    setStatus(
+      result.ok ? { kind: "ok", text: "Customer saved" } : { kind: "error", text: result.error },
+    );
+  }
+
   async function download() {
-    setDownloadError(null);
+    setStatus(null);
     if (!strict.success) {
       setAttempted(true);
       return;
@@ -98,33 +180,52 @@ export function InvoiceEditor() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : "Could not generate the PDF");
+      setStatus({
+        kind: "error",
+        text: error instanceof Error ? error.message : "Could not generate the PDF",
+      });
     } finally {
       setDownloading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
+    <div className="flex-1">
+      <div className="sticky top-[53px] z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
-          <h1 className="text-lg font-semibold text-zinc-900">Invoicer</h1>
+          <h1 className="text-base font-semibold text-zinc-900">
+            {invoiceId ? "Edit invoice" : "New invoice"}
+          </h1>
           <div className="flex items-center gap-3">
             {attempted && !strict.success && (
               <span className="text-sm text-red-600">Fix the highlighted fields first</span>
             )}
-            {downloadError && <span className="text-sm text-red-600">{downloadError}</span>}
+            {status && (
+              <span
+                className={status.kind === "ok" ? "text-sm text-green-700" : "text-sm text-red-600"}
+              >
+                {status.text}
+              </span>
+            )}
             <button
               type="button"
               onClick={download}
-              disabled={downloading}
-              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+              disabled={downloading || saving}
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-100 disabled:opacity-50"
             >
               {downloading ? "Generating…" : "Download PDF"}
             </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || downloading}
+              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <form className="space-y-4" onSubmit={(event) => event.preventDefault()} noValidate>
@@ -155,6 +256,26 @@ export function InvoiceEditor() {
           </Section>
 
           <Section title="From (seller)">
+            <Field label="Saved seller">
+              <select
+                className={inputClass}
+                defaultValue=""
+                onChange={(event) => {
+                  applySeller(event.target.value);
+                  event.target.value = "";
+                }}
+              >
+                <option value="">
+                  {sellers.length === 0 ? "No saved sellers yet" : "Choose a seller…"}
+                </option>
+                {sellers.map((seller) => (
+                  <option key={seller.id} value={seller.id}>
+                    {seller.label}
+                    {seller.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="Name" required error={errorFor("seller.name")}>
               <input
                 className={inputClass}
@@ -182,6 +303,36 @@ export function InvoiceEditor() {
           </Section>
 
           <Section title="Bill to (buyer)">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-48 flex-1">
+                <Field label="Saved customer">
+                  <select
+                    className={inputClass}
+                    defaultValue=""
+                    onChange={(event) => {
+                      applyCustomer(event.target.value);
+                      event.target.value = "";
+                    }}
+                  >
+                    <option value="">
+                      {customers.length === 0 ? "No saved customers yet" : "Choose a customer…"}
+                    </option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <button
+                type="button"
+                onClick={saveBuyerAsCustomer}
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100"
+              >
+                Save as customer
+              </button>
+            </div>
             <Field label="Name" required error={errorFor("buyer.name")}>
               <input
                 className={inputClass}
