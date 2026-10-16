@@ -64,6 +64,22 @@ The generated client (`src/generated/prisma`) is git-ignored. `npm install` rege
 (the `postinstall` script runs `prisma generate`), and you can run `npx prisma generate` yourself
 after editing the schema.
 
+### Migrations that must keep data
+
+`prisma migrate dev` refuses to run non-interactively when a change would lose data (for example
+dropping a column). In that case:
+
+1. Generate the SQL: `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`.
+2. Put it in a new folder `prisma/migrations/<timestamp>_<name>/migration.sql` and **edit it** to
+   copy the data first: add the new columns, `UPDATE` them from the old ones, then drop.
+3. Apply it with `npx prisma migrate deploy`.
+4. Run the `migrate diff` command again. If the output is "empty migration", the database matches
+   the schema.
+
+[prisma/migrations/20261016020000_invoice_status_and_design](../../prisma/migrations/20261016020000_invoice_status_and_design/migration.sql)
+is an example: it copies each invoice's due date out of its JSON into a new column and moves
+`templateId` into the JSON before dropping the column.
+
 ## 4. Snapshots: the key design idea
 
 An invoice must not change after the fact. If you rename a seller, or delete a
@@ -94,14 +110,26 @@ the chosen one inside a single transaction, and the integration tests check that
 more than one default. This is safe for a single-user app; a multi-user app would want the database
 to enforce it.
 
-## 5. Money in the database
+## 5. Status: store the facts, derive the rest
+
+Only `DRAFT`, `SENT` and `PAID` are stored. **Overdue is not**, because it is a function of the
+stored status, the due date and today's date: an invoice that is fine today is overdue tomorrow,
+and a stored flag would need a nightly job to keep up. [effectiveStatus()](../../src/lib/invoice-status.ts)
+computes it, and the list filters for it in SQL (`status = SENT AND dueDate < today`). That works
+because dates are stored as ISO text (`2026-10-16`), which sorts and compares correctly as a string.
+
+A search box that uses Prisma's `contains` has one trap: the text is passed to SQL `LIKE` as is, so
+`%` and `_` act as wildcards. [escapeLike()](../../src/server/invoice-store.ts) escapes them, and an
+integration test checks it.
+
+## 6. Money in the database
 
 Amounts are integer **cents**, never floating point (`0.1 + 0.2` is not `0.3` in JavaScript).
 `totalCents` is a `BigInt` column because a total can exceed what a 32-bit `Int` holds. Prisma
 returns it as a JavaScript `bigint`; the store converts it to a `number`, which is safe because the
 schema limits quantities and prices so totals stay below 2e15.
 
-## 6. Where the database code lives
+## 7. Where the database code lives
 
 ```
 src/server/db.ts                     one PrismaClient per process, created lazily
@@ -120,7 +148,7 @@ Rules followed here:
   `next build`), and it is cached on `globalThis` so dev hot reloads do not open a new connection
   pool each time.
 
-## 7. Reading data in pages
+## 8. Reading data in pages
 
 Pages read the database in async Server Components:
 
@@ -143,7 +171,7 @@ With `cacheComponents` enabled, database reads are not cached and happen at requ
 `<Suspense>` boundary lets Next.js send the page shell immediately and stream the list in. After a
 mutation, the Server Action calls `refresh()` so the current page re-reads the data.
 
-## 8. Tests
+## 9. Tests
 
 Two kinds of test, because they have different costs:
 
@@ -156,7 +184,7 @@ Two kinds of test, because they have different costs:
 Mocking a database tells you little; running against a real one catches mistakes such as wrong
 column types, `BigInt` handling and invalid UUIDs.
 
-## 9. Common problems
+## 10. Common problems
 
 - **"DATABASE_URL is not set"**: copy `.env.example` to `.env`.
 - **"Can't reach database server"**: run `npm run db:up`; check Docker is running.
@@ -166,7 +194,7 @@ column types, `BigInt` handling and invalid UUIDs.
   then `npm run db:up && npm run db:migrate`.
 - **Prisma client types missing**: run `npx prisma generate`.
 
-## 10. Further reading
+## 11. Further reading
 
 - Prisma documentation: https://www.prisma.io/docs
 - PostgreSQL tutorial: https://www.postgresql.org/docs/current/tutorial.html

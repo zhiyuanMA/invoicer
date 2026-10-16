@@ -299,6 +299,31 @@ With `cacheComponents` on, a client component that generates random values while
 The fix used in [src/app/page.tsx](../../src/app/page.tsx) is to wrap the component in
 `<Suspense>`, so it renders on the client instead of being prerendered.
 
+### The current time needs `connection()`
+
+`new Date()` is not allowed in a component that Next.js could prerender, because the value would be
+frozen at build time. The invoice list works out "today" to decide what is overdue, so it calls
+`await connection()` (from `next/server`) first, which says "render this per request":
+
+```tsx
+async function InvoiceList({ searchParams }: { searchParams: SearchParams }) {
+  await connection();
+  const today = todayInAuckland(); // now allowed
+  // ...
+}
+```
+
+Awaiting `searchParams` is not enough on its own: when the page is prerendered, the search
+parameters are treated as empty. The error message ("Next.js encountered the unstable value
+`new Date()` while prerendering") names this fix.
+
+### Filters live in the URL
+
+The invoice list filters by status and search text with `?status=overdue&q=jane`. The page reads
+`searchParams` (a Promise, like `params`), the tabs are plain `<Link>`s, and the search box is a
+plain `<form method="get">`. No client-side state is needed, a filter survives a reload, and the
+URL can be bookmarked.
+
 ### Styling
 
 Tailwind utility classes go directly in `className`, for example
@@ -331,6 +356,10 @@ Tests live next to the code: `money.ts` and `money.test.ts` in the same folder. 
 
 ## 8. Common stumbles
 
+- **Old pages stay in the DOM, hidden.** With `cacheComponents`, Next.js keeps the previous page
+  mounted but hidden (using React's `<Activity>`) so its state survives going back. In browser
+  tests, `document.querySelector` can find elements of a page you already left; select only
+  visible ones (Playwright: the `:visible` selector).
 - **"Cannot find name 'LayoutProps'"**: run `npm run typecheck` (it runs `next typegen` first) or
   start `npm run dev` once.
 - **Hooks error or `onClick` ignored in a Server Component**: add `"use client"` to that file.

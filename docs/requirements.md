@@ -7,7 +7,12 @@ and download a PDF. It runs locally in Docker for a single user, and is aimed at
 
 ### In scope (MVP)
 
-- **Templates**: around three templates, with a selectable theme colour and font.
+- **Templates**: five templates (Classic, Modern, Minimal, Bold, Sky). Each invoice chooses a
+  template, an accent colour (any 6-digit hex colour) and one of three fonts (sans-serif, serif,
+  monospace). When no colour or font is chosen, the template's own is used (for example Sky is
+  serif by default). The choice is part of the invoice and is previewed live.
+- **Template fields**: templates show only what the invoice has. They do not add fields of their
+  own: there is no ship-to address, P.O. number, shipping, amount paid, signature or logo.
 - **Data entry**:
   - Required: seller name and buyer name.
   - Optional: everything else, including seller address, contact details, NZBN and GST number; buyer
@@ -16,8 +21,14 @@ and download a PDF. It runs locally in Docker for a single user, and is aimed at
 - **Live preview**: edits appear on the template immediately. Empty fields are not rendered, and
   leave no blank placeholder.
 - **PDF download**: rendered on the server on demand. PDF files are not stored.
-- **Invoice management**: save drafts, list, edit, duplicate, and track status (draft, sent, paid,
-  overdue).
+- **Invoice management**: save, list, edit, duplicate and delete invoices.
+- **Status**: an invoice is a draft, sent or paid. New invoices and duplicates start as drafts, and
+  editing an invoice does not change its status. "Overdue" is not stored: a sent invoice whose due
+  date has passed is shown as overdue (from the day after the due date, in New Zealand time), and
+  becomes paid or stays sent when you change it. An invoice without a due date is never overdue.
+- **List filters**: filter by status (all, draft, sent, paid, overdue; "sent" excludes overdue so the
+  tabs never overlap) and search the invoice number or buyer name, ignoring case. The filter is in
+  the URL, so it survives a reload and can be bookmarked.
 - **Content snapshot**: saving an invoice stores its full content (seller, buyer, line items, tax
   settings, template and theme) in the database. Later changes to saved sellers, customers or templates
   do not affect saved invoices. PDFs are re-rendered from the snapshot each time.
@@ -87,5 +98,5 @@ automatic invoice numbering, and IRD tax invoice compliance checks.
    demonstrable.
 3. **M3** (done): Prisma and PostgreSQL, docker compose, invoice CRUD with content snapshots, customers,
    sellers (several, with a default).
-4. **M4**: multiple templates, theme settings, invoice status, list filtering.
+4. **M4** (done): multiple templates, theme settings, invoice status, list filtering.
 5. **M5**: production Dockerfile with Chromium, Playwright E2E tests, README and screenshots.

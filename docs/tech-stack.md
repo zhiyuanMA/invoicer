@@ -4,17 +4,17 @@ The stack follows what is common in New Zealand job listings for TypeScript and 
 React, Next.js, PostgreSQL, Docker and CI. The application is a single Next.js project that runs
 locally in Docker; there is no cloud deployment or authentication.
 
-| Layer              | Choice                                                                       | Notes                                                                     |
-| ------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Language           | TypeScript (strict)                                                          |                                                                           |
-| Framework          | Next.js (App Router), full stack                                             | Server Actions and Route Handlers; no separate backend                    |
-| UI                 | React, Tailwind CSS, shadcn/ui                                               |                                                                           |
-| Forms & validation | React Hook Form, Zod                                                         | One Zod schema shared by client and server (`src/lib/schemas`)            |
-| Database           | PostgreSQL, Prisma                                                           | Runs through docker compose                                               |
-| PDF                | HTML template (React component) rendered to PDF with Playwright and Chromium | Preview and PDF share one template; rendered on demand in a Route Handler |
-| Tests              | Vitest, Playwright E2E                                                       |                                                                           |
-| Tooling            | npm, ESLint, Prettier, GitHub Actions (lint, typecheck, test, build)         | CI only; no deployment                                                    |
-| Containers         | Dockerfile (Next.js standalone output plus Chromium), docker compose         | `docker compose up` starts the web app and PostgreSQL                     |
+| Layer              | Choice                                                                       | Notes                                                                             |
+| ------------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Language           | TypeScript (strict)                                                          |                                                                                   |
+| Framework          | Next.js (App Router), full stack                                             | Server Actions and Route Handlers; no separate backend                            |
+| UI                 | React, Tailwind CSS, shadcn/ui                                               |                                                                                   |
+| Forms & validation | React Hook Form, Zod                                                         | One Zod schema shared by client and server (`src/lib/schemas`)                    |
+| Database           | PostgreSQL, Prisma                                                           | Runs through docker compose                                                       |
+| PDF                | HTML template (React component) rendered to PDF with Playwright and Chromium | Preview and PDF share one template; rendered on demand in a Route Handler         |
+| Tests              | Vitest, Playwright E2E                                                       |                                                                                   |
+| Tooling            | npm, ESLint, Prettier, GitHub Actions (lint, typecheck, test, build)         | CI only; GitHub Actions is currently switched off, so `npm run check` is the gate |
+| Containers         | Dockerfile (Next.js standalone output plus Chromium), docker compose         | `docker compose up` starts the web app and PostgreSQL                             |
 
 ## Decisions
 
@@ -36,6 +36,20 @@ locally in Docker; there is no cloud deployment or authentication.
   number, buyer name, issue date, currency and total are copied into columns for the list page.
   There are no foreign keys to customers or sellers, which is what makes snapshots
   independent.
+- **Design lives in the snapshot.** `template`, `accentColor` and `font` are fields of the invoice
+  schema (so the PDF endpoint needs only the invoice), with ids defined once in `src/lib/design.ts`.
+  Accent and font are optional: when absent each template falls back to its own default
+  (`defaultAccent`, `defaultFont` in the registry).
+  The accent colour is written into CSS, so the schema accepts only `#RRGGBB`.
+- **Templates share a view model.** `src/templates/view.ts` works out which lines appear and every
+  amount as text; each template only decides layout and CSS. Templates scope their styles under
+  their own root class and read the colour from a `--accent` CSS variable.
+- **Bold and Sky are modelled on two free third-party invoice templates.** Only the layout idea was
+  reproduced, in our own CSS and with our own data fields. No logo, text, font file or other asset
+  from them is used, and the original PDFs are not part of the repository.
+- **Status is stored as draft, sent or paid; overdue is derived.** `effectiveStatus()` combines the
+  stored status, the due date and today's date in Auckland. The due date is copied into its own
+  column, as an ISO string, so the list can filter overdue invoices in SQL.
 - **Money is stored as `BigInt` cents** and calculated with BigInt multiplication. The schema limits
   quantity (100,000) and unit price ($1,000,000) so every total stays inside the safe integer range.
 - **No logo upload.** This removes file storage and upload handling entirely.

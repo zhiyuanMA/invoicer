@@ -3,7 +3,7 @@
 An invoice generator: pick a template, enter invoice details, preview live, and download a PDF.
 Built with Next.js and TypeScript, aimed at New Zealand use (NZD, 15% GST).
 
-> Status: M3 done (saved invoices with content snapshots, customers, multiple sellers, PostgreSQL).
+> Status: M4 done (three templates with colour and font choices, invoice status, filters).
 
 ## Development
 
@@ -21,6 +21,7 @@ npm run dev                       # http://localhost:3000
 Other commands:
 
 ```bash
+npm run check             # everything below plus the production build
 npm test                  # unit tests (Vitest, no database needed)
 npm run test:integration  # database tests against the invoicer_test database
 npm run lint              # ESLint
@@ -38,6 +39,11 @@ npm run db:down           # stop PostgreSQL (data is kept in a Docker volume)
 - A line item needs both quantity and unit price to count towards totals; incomplete lines are still
   shown on the invoice, without an amount.
 - GST is calculated once on the sum of GST-applicable lines, not per line.
+- Each invoice picks one of five templates, an accent colour and a font (each falls back to the
+  template's own default). All of it is part of
+  the saved invoice, so changing a template later never alters an old invoice's look.
+- Invoice status is draft, sent or paid. Overdue is worked out (sent and past the due date), not
+  stored, so it can never go stale.
 - Saving an invoice stores a full snapshot of it (seller, buyer, lines, tax settings) in PostgreSQL.
   Editing or deleting a seller or customer never alters a saved invoice.
 - The live preview and the PDF come from the same template component (`src/templates`). The PDF is
@@ -46,5 +52,4 @@ npm run db:down           # stop PostgreSQL (data is kept in a Docker volume)
 
 ## Roadmap
 
-- M4: more templates, themes, invoice status
 - M5: production Dockerfile, E2E tests
