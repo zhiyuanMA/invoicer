@@ -1,3 +1,5 @@
+# `docker compose up` runs the whole app: PostgreSQL, the migrations, and the web server.
+# For development, `npm run db:up` starts only the database and you run `npm run dev` yourself.
 services:
   db:
     image: postgres:17-alpine
@@ -19,6 +21,45 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://invoicer:invoicer@db:5432/invoicer
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://invoicer:invoicer@db:5432/invoicer
+    ports:
+      # The app has no login, so it is only reachable from this machine.
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   pgdata:

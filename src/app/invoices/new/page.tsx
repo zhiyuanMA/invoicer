@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { InvoiceEditor } from "@/components/invoice-editor";
 import { newInvoiceFormValues } from "@/lib/invoice-form";
@@ -13,6 +14,8 @@ export default function NewInvoicePage() {
 }
 
 async function NewInvoice() {
+  // Read from the database on every request, never at build time.
+  await connection();
   const [sellers, customers] = await Promise.all([listSellers(), listCustomers()]);
   // New invoices start from the default seller, if there is one.
   const defaultSeller = sellers.find((seller) => seller.isDefault) ?? {};

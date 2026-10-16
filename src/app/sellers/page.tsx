@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { SellerRowActions } from "@/components/seller-row-actions";
 import { listSellers } from "@/server/seller-store";
@@ -28,6 +29,8 @@ export default function SellersPage() {
 }
 
 async function SellerList() {
+  // Read from the database on every request, never at build time.
+  await connection();
   const sellers = await listSellers();
   if (sellers.length === 0) {
     return (

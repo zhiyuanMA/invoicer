@@ -15,7 +15,12 @@ export function renderInvoiceHtml(invoice: Invoice) {
 
 /** Renders HTML to an A4 PDF with headless Chromium. Scripts and all network access are disabled. */
 export async function htmlToPdf(html: string): Promise<Buffer> {
-  const browser = await chromium.launch();
+  // Inside the Docker image Chromium cannot use its sandbox (Docker's default seccomp profile
+  // blocks the user namespaces it needs), so the image sets CHROMIUM_NO_SANDBOX=1. The page is our
+  // own escaped HTML with scripts and network disabled, and the container is the isolation.
+  const browser = await chromium.launch({
+    args: process.env.CHROMIUM_NO_SANDBOX === "1" ? ["--no-sandbox"] : [],
+  });
   try {
     const context = await browser.newContext({ javaScriptEnabled: false });
     // The HTML is self-contained; refuse every request so a template can never reach out
