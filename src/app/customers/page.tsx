@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+import Link from "next/link";
 import { Suspense } from "react";
 import { DeleteCustomerButton } from "@/components/delete-customer-button";
 import { listCustomers } from "@/server/customer-store";
@@ -5,11 +7,19 @@ import { listCustomers } from "@/server/customer-store";
 export default function CustomersPage() {
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-6">
-      <h1 className="mb-1 text-xl font-semibold text-zinc-900">Customers</h1>
+      <div className="mb-1 flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-zinc-900">Customers</h1>
+        <Link
+          href="/customers/new"
+          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+        >
+          Add customer
+        </Link>
+      </div>
       <p className="mb-4 text-sm text-zinc-600">
-        Save a buyer from the invoice editor with “Save as customer”, then pick them on any new
-        invoice. Invoices keep their own copy of the buyer, so deleting a customer never changes an
-        invoice.
+        The buyers you invoice. Add one here, or save the buyer of an invoice with “Save as
+        customer”, then pick them on any new invoice. Invoices keep their own copy of the buyer, so
+        deleting a customer never changes an invoice.
       </p>
       <Suspense fallback={<p className="text-sm text-zinc-500">Loading…</p>}>
         <CustomerList />
@@ -19,11 +29,13 @@ export default function CustomersPage() {
 }
 
 async function CustomerList() {
+  // Read from the database on every request, never at build time.
+  await connection();
   const customers = await listCustomers();
   if (customers.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-600">
-        No saved customers yet.
+        No saved customers yet. Add one to reuse it on your invoices.
       </p>
     );
   }
