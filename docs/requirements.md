@@ -37,7 +37,9 @@ and download a PDF. It runs locally in Docker for a single user, and is aimed at
   One seller can be the default, which prefills new invoices; the first seller created becomes the
   default, and deleting the default leaves none. Any saved seller can be chosen in the invoice
   editor, which fills the seller fields and the payment details.
-- **Customers**: buyers can be saved and chosen on later invoices.
+- **Customers**: buyers can be added on the customers page, or saved from an invoice with "Save
+  as customer", and chosen on later invoices. A customer needs only a name. Customers can be
+  deleted; there is no editing yet.
 
 ### Out of scope
 
@@ -88,7 +90,8 @@ automatic invoice numbering, and IRD tax invoice compliance checks.
   - PDF rendering must not load external URLs (SSRF protection).
 - **Maintainability**: templates are decoupled from business logic; adding a template means adding
   one component and registering it.
-- **Runnability**: `docker compose up` starts the app, including database migrations.
+- **Runnability**: `docker compose up --build` starts PostgreSQL, applies the migrations and runs
+  the app, with the PDF browser and fonts included. Both are published on localhost only.
 
 ## 6. Milestones
 
@@ -99,4 +102,4 @@ automatic invoice numbering, and IRD tax invoice compliance checks.
 3. **M3** (done): Prisma and PostgreSQL, docker compose, invoice CRUD with content snapshots, customers,
    sellers (several, with a default).
 4. **M4** (done): multiple templates, theme settings, invoice status, list filtering.
-5. **M5**: production Dockerfile with Chromium, Playwright E2E tests, README and screenshots.
+5. **M5** (done): production Dockerfile with Chromium, Playwright E2E tests, README and screenshots.

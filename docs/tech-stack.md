@@ -76,6 +76,37 @@ prisma/             schema and migrations
 Dockerfile, docker-compose.yml
 ```
 
+## Containers and testing
+
+- **Image.** `Dockerfile` has four stages: `deps` (npm ci, which also generates the Prisma client),
+  `builder` (next build), `migrate` (the Prisma CLI, run once to apply migrations) and `runner` (the
+  app). The runner is `node:22-bookworm-slim` plus Chromium from the same Playwright version the app
+  was built with, installed before the app code so that large layer is cached. It runs as the
+  `node` user and is about 2 GB, almost all of it Chromium and its system libraries.
+- **Compose.** `db`, then `migrate` (exits when done), then `web`, each waiting on the previous one.
+  `web` has a health check on `/api/health`. Ports are published on 127.0.0.1 only, because the app
+  has no login.
+- **Fonts in the image.** Chromium picks the Liberation fonts (metric-compatible with Arial, Times
+  New Roman and Courier New), which is why the font stacks in `src/lib/design.ts` end with them.
+  I checked the PDFs generated inside the container: they embed LiberationSans, LiberationSerif and
+  LiberationMono.
+- **Chromium without its sandbox in the image.** Docker's default security profile blocks the user
+  namespaces Chromium's sandbox needs, so the image sets `CHROMIUM_NO_SANDBOX=1`. The rendered page
+  is the app's own escaped HTML with scripts and network disabled, and the container is the
+  isolation. Outside Docker the sandbox stays on.
+- **The build needs no database and no network.** Pages that read the database call
+  `await connection()`, so Next.js renders them per request instead of at build time; the Geist
+  font from Google Fonts was dropped for system fonts. Both were found because the first image build
+  failed.
+- **Three kinds of test.** Unit tests (Vitest) need nothing. Integration tests run the stores
+  against a real `invoicer_test` PostgreSQL. End-to-end tests (Playwright Test) drive the production
+  build in a real browser against the same test database; they build into `.next-e2e` so they never
+  disturb a running dev server. `npm run check` runs all three, plus lint, types, formatting and the
+  build. Both database-backed kinds refuse to run unless the database name ends in `_test`.
+- **GitHub Actions** is configured in `.github/workflows/ci.yml` (formats, lints, type-checks, runs
+  the unit and integration tests and the build) but is currently switched off, so `npm run check` is
+  the gate.
+
 ## Known notes
 
 - `npm audit` reports high-severity findings in the `eslint-config-next` dev dependency chain
