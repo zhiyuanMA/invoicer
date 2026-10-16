@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { saveCustomerAction, saveInvoiceAction } from "@/app/actions";
+import { ACCENT_PRESETS, FONT_IDS, FONT_LABELS, TEMPLATE_IDS, type FontId } from "@/lib/design";
+import type { Status } from "@/lib/invoice-status";
 import { todayInAuckland } from "@/lib/format";
 import {
   emptyLine,
@@ -14,7 +16,9 @@ import {
 import { invoiceSchema, partySchema } from "@/lib/schemas/invoice";
 import type { Customer } from "@/server/customer-store";
 import type { Seller } from "@/server/seller-store";
+import { templates } from "@/templates";
 import { Field, Section, inputClass } from "./fields";
+import { InvoiceStatusSelect } from "./invoice-status-select";
 import { InvoicePreview } from "./invoice-preview";
 
 /** Maps a schema issue path to the form field name that produced it. */
@@ -36,16 +40,19 @@ function touchedAt(touched: unknown, name: string): boolean {
   return node === true;
 }
 
-type Status = { kind: "ok" | "error"; text: string } | null;
+type Message = { kind: "ok" | "error"; text: string } | null;
 
 export function InvoiceEditor({
   invoiceId,
+  status,
   initialValues,
   customers,
   sellers,
 }: {
   /** Set when editing a saved invoice. */
   invoiceId?: string;
+  /** The saved invoice's status (including overdue), when editing. */
+  status?: Status;
   initialValues: InvoiceFormValues;
   customers: Customer[];
   sellers: Seller[];
@@ -60,13 +67,15 @@ export function InvoiceEditor({
   const [attempted, setAttempted] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<Status>(null);
+  const [message, setMessage] = useState<Message>(null);
 
   // A new invoice's issue date defaults to today in New Zealand. Done after mount to avoid a
   // server/client mismatch.
   useEffect(() => {
     if (!invoiceId) setValue("issueDate", todayInAuckland());
   }, [invoiceId, setValue]);
+
+  const accent = values.accentColor || templates[values.template].defaultAccent;
 
   const strict = useMemo(() => invoiceSchema.safeParse(toInvoiceInput(values)), [values]);
   const preview = useMemo(() => invoiceSchema.safeParse(toPreviewInput(values)), [values]);
@@ -92,7 +101,7 @@ export function InvoiceEditor({
   const invalid = (name: string) => (errorFor(name) ? true : undefined);
 
   async function save() {
-    setStatus(null);
+    setMessage(null);
     if (!strict.success) {
       setAttempted(true);
       return;
@@ -101,15 +110,15 @@ export function InvoiceEditor({
     try {
       const result = await saveInvoiceAction(invoiceId ?? null, strict.data);
       if (!result.ok) {
-        setStatus({ kind: "error", text: result.error });
+        setMessage({ kind: "error", text: result.error });
       } else if (!invoiceId) {
         // The new invoice now exists; continue editing it at its own address.
         router.replace(`/invoices/${result.id}`);
       } else {
-        setStatus({ kind: "ok", text: "Saved" });
+        setMessage({ kind: "ok", text: "Saved" });
       }
     } catch {
-      setStatus({ kind: "error", text: "Could not save the invoice" });
+      setMessage({ kind: "error", text: "Could not save the invoice" });
     } finally {
       setSaving(false);
     }
@@ -141,21 +150,21 @@ export function InvoiceEditor({
   }
 
   async function saveBuyerAsCustomer() {
-    setStatus(null);
+    setMessage(null);
     const parsed = partySchema.safeParse(values.buyer);
     if (!parsed.success) {
       setAttempted(true);
-      setStatus({ kind: "error", text: "Enter the buyer name first" });
+      setMessage({ kind: "error", text: "Enter the buyer name first" });
       return;
     }
     const result = await saveCustomerAction(parsed.data);
-    setStatus(
+    setMessage(
       result.ok ? { kind: "ok", text: "Customer saved" } : { kind: "error", text: result.error },
     );
   }
 
   async function download() {
-    setStatus(null);
+    setMessage(null);
     if (!strict.success) {
       setAttempted(true);
       return;
@@ -180,7 +189,7 @@ export function InvoiceEditor({
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setStatus({
+      setMessage({
         kind: "error",
         text: error instanceof Error ? error.message : "Could not generate the PDF",
       });
@@ -200,11 +209,14 @@ export function InvoiceEditor({
             {attempted && !strict.success && (
               <span className="text-sm text-red-600">Fix the highlighted fields first</span>
             )}
-            {status && (
+            {invoiceId && status && <InvoiceStatusSelect id={invoiceId} effective={status} />}
+            {message && (
               <span
-                className={status.kind === "ok" ? "text-sm text-green-700" : "text-sm text-red-600"}
+                className={
+                  message.kind === "ok" ? "text-sm text-green-700" : "text-sm text-red-600"
+                }
               >
-                {status.text}
+                {message.text}
               </span>
             )}
             <button
@@ -229,6 +241,68 @@ export function InvoiceEditor({
 
       <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <form className="space-y-4" onSubmit={(event) => event.preventDefault()} noValidate>
+          <Section title="Design">
+            <fieldset>
+              <legend className="mb-1 text-xs font-medium text-zinc-600">Template</legend>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {TEMPLATE_IDS.map((id) => (
+                  <label
+                    key={id}
+                    className="cursor-pointer rounded-md border border-zinc-200 p-3 text-sm has-[:checked]:border-zinc-900 has-[:checked]:ring-1 has-[:checked]:ring-zinc-900"
+                  >
+                    <input type="radio" value={id} className="sr-only" {...register("template")} />
+                    <span className="block font-medium text-zinc-900">{templates[id].label}</span>
+                    <span className="block text-xs text-zinc-500">{templates[id].description}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div>
+              <span className="mb-1 block text-xs font-medium text-zinc-600">Accent colour</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {ACCENT_PRESETS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    aria-label={`Use ${color}`}
+                    aria-pressed={accent === color}
+                    onClick={() => setValue("accentColor", color, { shouldDirty: true })}
+                    style={{ backgroundColor: color }}
+                    className="h-7 w-7 rounded-full border border-zinc-300 aria-pressed:ring-2 aria-pressed:ring-zinc-900 aria-pressed:ring-offset-2"
+                  />
+                ))}
+                <input
+                  type="color"
+                  aria-label="Custom accent colour"
+                  value={accent}
+                  onChange={(event) =>
+                    setValue("accentColor", event.target.value, { shouldDirty: true })
+                  }
+                  className="h-7 w-10 cursor-pointer rounded border border-zinc-300 bg-white p-0.5"
+                />
+                <button
+                  type="button"
+                  onClick={() => setValue("accentColor", "", { shouldDirty: true })}
+                  className="text-sm text-zinc-500 hover:text-zinc-900"
+                >
+                  Use the template&apos;s colour
+                </button>
+              </div>
+            </div>
+            <Field label="Font">
+              <select className={inputClass} {...register("font")}>
+                <option value="">
+                  Template default ({FONT_LABELS[templates[values.template].defaultFont]})
+                </option>
+                {FONT_IDS.map((id: FontId) => (
+                  <option key={id} value={id}>
+                    {FONT_LABELS[id]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </Section>
+
           <Section title="Invoice">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Title" error={errorFor("title")}>

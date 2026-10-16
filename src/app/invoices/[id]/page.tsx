@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { InvoiceEditor } from "@/components/invoice-editor";
+import { todayInAuckland } from "@/lib/format";
 import { invoiceToFormValues } from "@/lib/invoice-form";
+import { effectiveStatus } from "@/lib/invoice-status";
 import { listCustomers } from "@/server/customer-store";
 import { getInvoice } from "@/server/invoice-store";
 import { listSellers } from "@/server/seller-store";
@@ -25,6 +27,7 @@ async function EditInvoice({ params }: { params: Promise<{ id: string }> }) {
   return (
     <InvoiceEditor
       invoiceId={saved.id}
+      status={effectiveStatus(saved.status, saved.invoice.dueDate, todayInAuckland())}
       initialValues={invoiceToFormValues(saved.invoice)}
       customers={customers}
       sellers={sellers}
