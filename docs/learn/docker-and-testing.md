@@ -29,7 +29,7 @@ stage. Only the last stage becomes the running image, so build tools never ship.
 | --------- | ------------------------------------------------------------------------------------ |
 | `deps`    | Copies `package.json` and the Prisma files, runs `npm ci`. Cached until they change. |
 | `builder` | Copies the source and runs `next build`.                                             |
-| `migrate` | Reuses `deps` and runs `prisma migrate deploy`. A one-off job, not a server.         |
+| `migrate` | Installs only the Prisma CLI and dotenv, runs `prisma migrate deploy`, then exits.   |
 | `runner`  | The app: Node, Chromium, and the small `standalone` output of the build.             |
 
 Things worth understanding:
@@ -41,6 +41,14 @@ Things worth understanding:
   `.next/standalone` with only the files it needs, instead of the whole `node_modules`.
 - **Chromium is installed before the app code.** It is by far the largest layer, and
   it only changes when Playwright is upgraded.
+- **A separate, small `migrate` stage.** It needs two packages, not the whole app, so it installs
+  just those (at the versions in `package-lock.json`). Clean up in the same `RUN` that creates the
+  mess: npm's download cache added 300 MB to the image until `rm -rf /root/.npm` was added to that
+  same instruction. A later `RUN rm` would not help, because the files would still exist in the
+  earlier layer.
+- **Chromium is in the production image on purpose.** The tests use a different browser, installed
+  on your machine. The one in the image renders every PDF the app serves, so without it
+  "Download PDF" would fail.
 - **`USER node`.** The server does not need root, so it does not run as root.
 - **`.dockerignore`** keeps `node_modules`, `.git`, `.env` and the docs out of the build context, so
   builds are faster and secrets are not copied into the image.
@@ -56,9 +64,10 @@ Things worth understanding:
    app never starts against a database without tables.
 
 Two details: inside Compose the app reaches the database at `db:5432` (the service name is the
-host name), while from your Mac the same database is `localhost:5433`. And the ports are written
-`127.0.0.1:3000:3000`, which publishes them to this machine only. That matters because the app has no
-login.
+host name), while from your Mac the same database is `localhost:5433`. And the app's port is written
+`127.0.0.1:1333:3000`: `host:container`, so the app listens on 3000 inside its container and you
+reach it at port 1333 on your machine (3000 stays free for other things). The `127.0.0.1` part
+publishes it to this machine only, which matters because the app has no login.
 
 ## 4. Why the build failed twice
 

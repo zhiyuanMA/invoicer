@@ -42,7 +42,7 @@ Needs only Docker.
 docker compose up --build
 ```
 
-Then open http://localhost:3000. This starts PostgreSQL, applies the database migrations, and runs
+Then open http://localhost:1333. This starts PostgreSQL, applies the database migrations, and runs
 the app. The data lives in a Docker volume (`pgdata`) and survives restarts. Stop with
 `docker compose down`; add `-v` to also delete the data.
 
@@ -59,10 +59,10 @@ cp .env.example .env              # database connection strings
 npm run db:up                     # start PostgreSQL only (localhost:5433)
 npm run db:migrate                # create the tables
 npx playwright install chromium   # one-off: the browser used to render PDFs
-npm run dev                       # http://localhost:3000
+npm run dev                       # http://localhost:1333
 ```
 
-Use either `npm run dev` or the full Docker stack, not both: they share port 3000.
+Use either `npm run dev` or the full Docker stack, not both: they share port 1333.
 
 | Command                    | What it does                                                    |
 | -------------------------- | --------------------------------------------------------------- |

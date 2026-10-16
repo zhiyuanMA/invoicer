@@ -13,7 +13,7 @@ Versions used here: Node.js 22, TypeScript 5, Next.js 16 (App Router), React 19.
 
 ```bash
 npm install          # install dependencies from package-lock.json
-npm run dev          # dev server at http://localhost:3000, with hot reload
+npm run dev          # dev server at http://localhost:1333, with hot reload
 ```
 
 Everyday commands (all defined in [package.json](../../package.json)):
@@ -349,7 +349,7 @@ Tests live next to the code: `money.ts` and `money.test.ts` in the same folder. 
 
 ## 7. A good first change
 
-1. Run `npm run dev` and open `http://localhost:3000`.
+1. Run `npm run dev` and open `http://localhost:1333`.
 2. Edit [src/app/page.tsx](../../src/app/page.tsx) and watch the browser update.
 3. Add a function to `src/lib/money.ts`, write a test for it in `money.test.ts`, run `npm test`.
 4. Before committing: `npm run format && npm run lint && npm run typecheck && npm test`.

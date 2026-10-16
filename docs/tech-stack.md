@@ -79,11 +79,22 @@ Dockerfile, docker-compose.yml
 ## Containers and testing
 
 - **Image.** `Dockerfile` has four stages: `deps` (npm ci, which also generates the Prisma client),
-  `builder` (next build), `migrate` (the Prisma CLI, run once to apply migrations) and `runner` (the
+  `builder` (next build), `migrate` (a small image with only the Prisma CLI and dotenv, run once to apply migrations) and `runner` (the
   app). The runner is `node:22-bookworm-slim` plus Chromium from the same Playwright version the app
   was built with, installed before the app code so that large layer is cached. It runs as the
   `node` user and is about 2 GB, almost all of it Chromium and its system libraries.
-- **Compose.** `db`, then `migrate` (exits when done), then `web`, each waiting on the previous one.
+- **Chromium belongs in the production image.** It is not a test tool: every PDF is rendered at
+  request time by headless Chromium on the server (`src/lib/pdf.tsx`), so the app cannot produce a
+  PDF without it. The browser the tests use is a separate one, installed on the developer's machine
+  by `npx playwright install chromium`; the tests do not run in Docker. Chromium and its libraries
+  are 1.03 GB of the 1.96 GB image. If that ever matters, the way to shrink the web image is to move
+  the browser into its own container and connect to it, not to leave it out.
+- **The migrate image is small on purpose.** It installs only `prisma` and `dotenv` at the versions
+  pinned in `package-lock.json`, and removes npm's cache in the same layer: 0.7 GB, down from 2.3 GB
+  when it reused the full dependency tree.
+- **Compose.** The project name (`invoicer`) and the image names (`invoicer-web`,
+  `invoicer-migrate`) are set explicitly, so container and volume names do not depend on the folder
+  the repository is cloned into. `db`, then `migrate` (exits when done), then `web`, each waiting on the previous one.
   `web` has a health check on `/api/health`. Ports are published on 127.0.0.1 only, because the app
   has no login.
 - **Fonts in the image.** Chromium picks the Liberation fonts (metric-compatible with Arial, Times
