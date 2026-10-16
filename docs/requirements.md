@@ -19,9 +19,14 @@ and download a PDF. It runs locally in Docker for a single user, and is aimed at
 - **Invoice management**: save drafts, list, edit, duplicate, and track status (draft, sent, paid,
   overdue).
 - **Content snapshot**: saving an invoice stores its full content (seller, buyer, line items, tax
-  settings, template and theme) in the database. Later changes to seller settings or templates do
-  not affect saved invoices. PDFs are re-rendered from the snapshot each time.
-- **Reuse**: seller details are a single global setting; customers can be saved and reused.
+  settings, template and theme) in the database. Later changes to saved sellers, customers or templates
+  do not affect saved invoices. PDFs are re-rendered from the snapshot each time.
+- **Sellers**: any number of sellers can be saved (for example one per business). Each has a label
+  for lists and pickers (defaulting to its name), the seller fields, and its own payment details.
+  One seller can be the default, which prefills new invoices; the first seller created becomes the
+  default, and deleting the default leaves none. Any saved seller can be chosen in the invoice
+  editor, which fills the seller fields and the payment details.
+- **Customers**: buyers can be saved and chosen on later invoices.
 
 ### Out of scope
 
@@ -80,7 +85,7 @@ automatic invoice numbering, and IRD tax invoice compliance checks.
    schema (only the two names are required).
 2. **M2** (done): one template, entry form, live preview, PDF download. No database yet; already
    demonstrable.
-3. **M3**: Prisma and PostgreSQL, docker compose, invoice CRUD with content snapshots, customers,
-   seller settings.
+3. **M3** (done): Prisma and PostgreSQL, docker compose, invoice CRUD with content snapshots, customers,
+   sellers (several, with a default).
 4. **M4**: multiple templates, theme settings, invoice status, list filtering.
 5. **M5**: production Dockerfile with Chromium, Playwright E2E tests, README and screenshots.

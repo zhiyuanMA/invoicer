@@ -245,6 +245,7 @@ export async function saveInvoice(input: unknown) {
   // ...save with Prisma...
   return { ok: true as const };
 }
+// The real ones are in src/app/actions.ts
 ```
 
 Server Functions are public HTTP endpoints in disguise: **always validate their input on the
@@ -282,8 +283,9 @@ that means in practice:
   inside a `<Suspense>` boundary, so the shell is sent immediately and that part streams in.
 - To cache a result, mark an async function or component with the `"use cache"` directive and give
   it a lifetime with `cacheLife(...)`.
-- For an invoice app, most data is user-specific and changes often, so expect to use `<Suspense>`
-  around database reads more often than `"use cache"`. The dev overlay tells you when a route
+- For an invoice app, most data changes often, so database reads use `<Suspense>` rather than
+  `"use cache"`: see [src/app/page.tsx](../../src/app/page.tsx), where `InvoiceList` awaits the
+  database inside a Suspense boundary. The dev overlay tells you when a route
   blocks and suggests the fix.
 - `GET` Route Handlers follow the same model: they run at request time by default.
 
@@ -310,6 +312,7 @@ src/app/          routes, layouts, Server Actions, Route Handlers
 src/components/   UI: invoice-editor (form), invoice-preview
 src/templates/    invoice templates, plain React components
 src/lib/          pure logic: money.ts, schemas/, pdf.tsx
+src/server/       database access (Prisma stores); see prisma-and-database.md
 src/pages/api/    the PDF endpoint (Pages Router, see below)
 ```
 
