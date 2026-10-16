@@ -40,8 +40,8 @@ if (result.success) {
 In this project the same schema is used for:
 
 1. **Runtime validation** on the server (Server Actions and Route Handlers).
-2. **Form validation** in the browser, so users see errors immediately (via React Hook Form, added
-   in M2).
+2. **Form validation** in the browser, so users see errors immediately (React Hook Form for state,
+   the schema for the rules).
 3. **The TypeScript type**, derived with `z.infer`, so the type and the validation can never drift
    apart.
 
@@ -234,16 +234,25 @@ export async function saveInvoice(input: unknown) {
 
 The parameter is typed `unknown` on purpose: it forces you to validate before using it.
 
-### React Hook Form (planned for M2)
+### React Hook Form and live validation
+
+The invoice form keeps every field as a string (that is what inputs give you) and converts the
+values with `toInvoiceInput` in [src/lib/invoice-form.ts](../../src/lib/invoice-form.ts), for
+example `"12.50"` dollars into `1250` cents. The result goes through `invoiceSchema.safeParse` on
+every change in [invoice-editor.tsx](../../src/components/invoice-editor.tsx):
 
 ```ts
-import { zodResolver } from "@hookform/resolvers/zod";
-
-const form = useForm({ resolver: zodResolver(invoiceSchema) });
+const strict = invoiceSchema.safeParse(toInvoiceInput(values));
+// strict.error.issues -> messages shown next to the matching fields
+// strict.data         -> what gets sent to /api/pdf
 ```
 
-The resolver feeds the schema's errors into the form, so client and server enforce exactly the same
-rules. (`@hookform/resolvers` is not installed yet.)
+The schema's issue `path` (for example `["lines", 0, "quantity"]`) is joined into a field name
+(`lines.0.quantity`) so each message appears under the right input. This works without
+`@hookform/resolvers`, which is the usual way to plug a Zod schema into React Hook Form
+(`useForm({ resolver: zodResolver(schema) })`). We validate manually because the form's string
+values and the schema's number values differ and because errors are shown only after a field is
+touched or a download is attempted.
 
 ### Database
 

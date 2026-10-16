@@ -250,17 +250,25 @@ export async function saveInvoice(input: unknown) {
 Server Functions are public HTTP endpoints in disguise: **always validate their input on the
 server**, even if the form already validated it in the browser.
 
+### Why the PDF endpoint is in `src/pages/`
+
+The PDF needs the template rendered to an HTML string with `react-dom/server`. Next.js does not
+allow that import in App Router code, including Route Handlers, because they run in the Server
+Components layer. The Pages Router has no such restriction, and both routers can live in one
+project, so [src/pages/api/pdf.ts](../../src/pages/api/pdf.ts) is a Pages Router API route:
+`export default function handler(req, res)`. If you see the error "You're importing a component
+that imports react-dom/server", this is why.
+
 ### Route Handlers
 
-`route.ts` files export functions named after HTTP methods and return a standard `Response`. We will
-use one to return the generated PDF:
+`route.ts` files export functions named after HTTP methods and return a standard `Response`. A typical
+example (this project's PDF endpoint is not one of these, see above):
 
 ```ts
-// src/app/api/invoices/[id]/pdf/route.ts
-export async function GET(request: Request, ctx: RouteContext<"/api/invoices/[id]/pdf">) {
+// src/app/api/invoices/[id]/route.ts
+export async function GET(request: Request, ctx: RouteContext<"/api/invoices/[id]">) {
   const { id } = await ctx.params;
-  // render the PDF for invoice `id`...
-  return new Response(pdfBytes, { headers: { "Content-Type": "application/pdf" } });
+  return Response.json({ id });
 }
 ```
 
@@ -282,6 +290,13 @@ that means in practice:
 Read `node_modules/next/dist/docs/01-app/01-getting-started/08-caching.md` before building the
 pages that read from the database (M3).
 
+### Suspense and client-only randomness
+
+With `cacheComponents` on, a client component that generates random values while prerendering
+(React Hook Form's `useFieldArray` creates ids with `crypto.randomUUID()`) makes Next.js complain.
+The fix used in [src/app/page.tsx](../../src/app/page.tsx) is to wrap the component in
+`<Suspense>`, so it renders on the client instead of being prerendered.
+
 ### Styling
 
 Tailwind utility classes go directly in `className`, for example
@@ -292,9 +307,10 @@ Tailwind utility classes go directly in `className`, for example
 
 ```
 src/app/          routes, layouts, Server Actions, Route Handlers
-src/components/   reusable UI (form, preview)           [planned]
-src/templates/    invoice templates, plain React        [planned]
-src/lib/          pure logic: money.ts, schemas/        [exists]
+src/components/   UI: invoice-editor (form), invoice-preview
+src/templates/    invoice templates, plain React components
+src/lib/          pure logic: money.ts, schemas/, pdf.tsx
+src/pages/api/    the PDF endpoint (Pages Router, see below)
 ```
 
 Guideline: keep business logic (money, validation) in `src/lib` as plain TypeScript with no

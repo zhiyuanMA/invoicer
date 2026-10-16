@@ -30,10 +30,19 @@ locally in Docker; there is no cloud deployment or authentication.
 - **No logo upload.** This removes file storage and upload handling entirely.
 - **No authentication.** The app is single-user and local; it binds to `localhost` only.
 
+- **PDF endpoint is a Pages Router API route.** Rendering the template to HTML needs
+  `react-dom/server`, which Next.js does not allow in App Router route handlers (they run in the
+  React Server Components layer). `src/pages/api/pdf.ts` is therefore a Pages Router API route; both
+  routers coexist in one project. The alternative, a print page that Chromium navigates to, needs
+  JavaScript and network access in the PDF browser and was rejected as more fragile.
+- **Chromium is launched per request.** Simple and isolated; it can be replaced by a shared browser
+  instance later if PDF latency matters.
+
 ## Layout
 
 ```
-src/app/            pages, Server Actions, PDF route
+src/app/            pages and layouts (App Router)
+src/pages/api/      PDF endpoint (Pages Router, see Decisions)
 src/components/     form, preview and other UI
 src/templates/      invoice templates (React components)
 src/lib/            Zod schemas, money and GST calculation, Prisma client

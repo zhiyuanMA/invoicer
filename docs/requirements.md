@@ -11,7 +11,7 @@ and download a PDF. It runs locally in Docker for a single user, and is aimed at
 - **Data entry**:
   - Required: seller name and buyer name.
   - Optional: everything else, including seller address, contact details, NZBN and GST number; buyer
-    address and email; invoice title, number, issue date, due date, currency, payment details and
+    address, email and NZBN; invoice title, number, issue date, due date, currency, payment details and
     notes; and line items.
 - **Live preview**: edits appear on the template immediately. Empty fields are not rendered, and
   leave no blank placeholder.
@@ -76,9 +76,9 @@ automatic invoice numbering, and IRD tax invoice compliance checks.
 
 ## 6. Milestones
 
-1. **M1**: project skeleton, lint, formatting, tests, CI; money and GST calculation with tests; Zod
+1. **M1** (done): project skeleton, lint, formatting, tests, CI; money and GST calculation with tests; Zod
    schema (only the two names are required).
-2. **M2**: one template, entry form, live preview, PDF download. No database yet; already
+2. **M2** (done): one template, entry form, live preview, PDF download. No database yet; already
    demonstrable.
 3. **M3**: Prisma and PostgreSQL, docker compose, invoice CRUD with content snapshots, customers,
    seller settings.
