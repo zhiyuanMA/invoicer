@@ -1,0 +1,30 @@
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+
+# Env and logs
+.env
+.env.*
+*.log
+
+# Next.js / test output
+/.next/
+/out/
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+*.pem
