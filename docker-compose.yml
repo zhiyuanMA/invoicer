@@ -1,5 +1,9 @@
 # `docker compose up` runs the whole app: PostgreSQL, the migrations, and the web server.
 # For development, `npm run db:up` starts only the database and you run `npm run dev` yourself.
+# A fixed project name, so container and volume names (invoicer-db-1, invoicer_pgdata) do not
+# depend on the name of the folder the repository is cloned into.
+name: invoicer
+
 services:
   db:
     image: postgres:17-alpine
@@ -23,6 +27,7 @@ services:
       retries: 10
 
   migrate:
+    image: invoicer-migrate:latest
     build:
       context: .
       target: migrate
@@ -34,6 +39,7 @@ services:
     restart: "no"
 
   web:
+    image: invoicer-web:latest
     build:
       context: .
       target: runner
@@ -42,7 +48,8 @@ services:
       DATABASE_URL: postgresql://invoicer:invoicer@db:5432/invoicer
     ports:
       # The app has no login, so it is only reachable from this machine.
-      - "127.0.0.1:3000:3000"
+      # host port 1333 -> the app listening on 3000 inside the container
+      - "127.0.0.1:1333:3000"
     depends_on:
       db:
         condition: service_healthy

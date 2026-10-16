@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# Stages: deps -> builder -> runner (the app), and deps -> migrate (applies database migrations).
+# Stages: deps -> builder -> runner (the app), and a separate small migrate stage (applies the
+# database migrations).
 FROM node:22-bookworm-slim AS base
 WORKDIR /app
 
@@ -15,8 +16,17 @@ FROM deps AS builder
 COPY . .
 RUN npm run build
 
-# One-off job: apply the migrations, then exit. It needs the Prisma CLI, a dev dependency.
-FROM deps AS migrate
+# One-off job: apply the migrations, then exit. It needs only the Prisma CLI and dotenv (which
+# prisma.config.ts imports), so it installs just those, at the versions pinned in package-lock.json,
+# instead of reusing the full dependency tree.
+FROM base AS migrate
+COPY package-lock.json ./
+RUN PRISMA="$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")" \
+    && DOTENV="$(node -p "require('./package-lock.json').packages['node_modules/dotenv'].version")" \
+    && npm install --no-save --no-package-lock --omit=dev --no-audit --no-fund "prisma@$PRISMA" "dotenv@$DOTENV" \
+    && rm -rf /root/.npm /root/.cache
+COPY prisma ./prisma
+COPY prisma.config.ts ./
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM base AS runner
